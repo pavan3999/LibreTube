@@ -91,7 +91,7 @@ jobs:
         run: |
           set -e
 
-          cp app/build/outputs/apk/release/app-universal-release-ununsigned-signed-signed.apk LibreTube-r${{ env.COMMIT_COUNT }}.apk
+          cp app/build/outputs/apk/release/app-universal-release-unsigned-signed-signed.apk LibreTube-r${{ env.COMMIT_COUNT }}.apk
           sha=`sha256sum LibreTube-r${{ env.COMMIT_COUNT }}.apk | awk '{ print $1 }'`
           echo "APK_UNIVERSAL_SHA=$sha" >> $GITHUB_ENV
 
