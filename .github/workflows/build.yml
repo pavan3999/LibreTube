@@ -91,23 +91,23 @@ jobs:
         run: |
           set -e
 
-          cp app/build/outputs/apk/release/app-universal-release-signed.apk LibreTube-r${{ env.COMMIT_COUNT }}.apk
+          cp app/build/outputs/apk/release/app-universal-release-ununsigned-signed-signed.apk LibreTube-r${{ env.COMMIT_COUNT }}.apk
           sha=`sha256sum LibreTube-r${{ env.COMMIT_COUNT }}.apk | awk '{ print $1 }'`
           echo "APK_UNIVERSAL_SHA=$sha" >> $GITHUB_ENV
 
-          cp app/build/outputs/apk/release/app-arm64-v8a-release-signed.apk LibreTube-arm64-v8a-r${{ env.COMMIT_COUNT }}.apk
+          cp app/build/outputs/apk/release/app-arm64-v8a-release-unsigned-signed.apk LibreTube-arm64-v8a-r${{ env.COMMIT_COUNT }}.apk
           sha=`sha256sum LibreTube-arm64-v8a-r${{ env.COMMIT_COUNT }}.apk | awk '{ print $1 }'`
           echo "APK_ARM64_V8A_SHA=$sha" >> $GITHUB_ENV
 
-          cp app/build/outputs/apk/release/app-armeabi-v7a-release-signed.apk LibreTube-armeabi-v7a-r${{ env.COMMIT_COUNT }}.apk
+          cp app/build/outputs/apk/release/app-armeabi-v7a-release-unsigned-signed.apk LibreTube-armeabi-v7a-r${{ env.COMMIT_COUNT }}.apk
           sha=`sha256sum LibreTube-armeabi-v7a-r${{ env.COMMIT_COUNT }}.apk | awk '{ print $1 }'`
           echo "APK_ARMEABI_V7A_SHA=$sha" >> $GITHUB_ENV
 
-          cp app/build/outputs/apk/release/app-x86-release-signed.apk LibreTube-x86-r${{ env.COMMIT_COUNT }}.apk
+          cp app/build/outputs/apk/release/app-x86-release-unsigned-signed.apk LibreTube-x86-r${{ env.COMMIT_COUNT }}.apk
           sha=`sha256sum LibreTube-x86-r${{ env.COMMIT_COUNT }}.apk | awk '{ print $1 }'`
           echo "APK_X86_SHA=$sha" >> $GITHUB_ENV
 
-          cp app/build/outputs/apk/release/app-x86_64-release-signed.apk LibreTube-x86_64-r${{ env.COMMIT_COUNT }}.apk
+          cp app/build/outputs/apk/release/app-x86_64-release-unsigned-signed.apk LibreTube-x86_64-r${{ env.COMMIT_COUNT }}.apk
           sha=`sha256sum LibreTube-x86_64-r${{ env.COMMIT_COUNT }}.apk | awk '{ print $1 }'`
           echo "APK_X86_64_SHA=$sha" >> $GITHUB_ENV
 
