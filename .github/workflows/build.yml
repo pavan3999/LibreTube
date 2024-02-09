@@ -1,0 +1,154 @@
+name: Build job
+
+permissions:
+  contents: write
+
+on:
+  # Every week at 23:00 UTC
+  schedule:
+    - cron: '0 23 * * 6'
+  # Manual triggers
+  workflow_dispatch:
+    inputs:
+      git-ref:
+        description: Git Ref (Optional)
+        required: false
+      dry-run:
+        description: Creates a draft release
+        required: false
+
+jobs:
+  build-app:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone Repository (Latest)
+        uses: actions/checkout@v4
+        with:
+          repository: 'libre-tube/LibreTube'
+          fetch-depth: 0
+        if: github.event.inputs.git-ref == ''
+      - name: Clone Repository (Custom Ref)
+        uses: actions/checkout@v4
+        if: github.event.inputs.git-ref != ''
+        with:
+          repository: 'libre-tube/LibreTube'
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.git-ref }}
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: adopt
+
+      - name: Get previous release
+        id: last_release
+        uses: InsonusK/get-latest-release@v1.1.0
+        with:
+          myToken: ${{ github.token }}
+          exclude_types: "draft|prerelease"
+          view_top: 1
+
+      - name: Prepare build
+        run: |
+          set -e
+
+          commit_count=$(git rev-list --count HEAD)
+          echo "COMMIT_COUNT=$commit_count" >> $GITHUB_ENV
+          current_sha=$(git rev-parse HEAD)
+          echo "CURRENT_SHA=$current_sha" >> $GITHUB_ENV
+          prev_commit_count=$(echo "${{ steps.last_release.outputs.tag_name }}" | sed -e "s/^r//")
+          commit_count_diff=$(expr $commit_count - $prev_commit_count)
+          [ $commit_count_diff != 0 ] || exit 1
+          commit_count_diff_plus_one=$(expr $commit_count_diff + 1)
+          prev_release_sha=$(git log --topo-order -n $commit_count_diff_plus_one --skip $commit_count_diff --max-count 1 --pretty=format:"%H")
+          echo "PREV_RELEASE_SHA=$prev_release_sha" >> $GITHUB_ENV
+
+          echo "COMMIT_LOGS<<{delimiter}
+          $(curl -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/libre-tube/LibreTube/compare/$prev_release_sha...$current_sha" \
+            | jq '[.commits[]|{message:(.commit.message | split("\n")), username:.author.login}]' \
+            | jq -r '.[]|"- \(.message | first) (@\(.username))"')
+          {delimiter}" >> $GITHUB_ENV
+
+      - name: Build APK
+        uses: gradle/gradle-command-action@v2
+        with:
+          arguments: assembleRelease
+
+      - name: Sign APK
+        uses: r0adkll/sign-android-release@v1
+        with:
+          releaseDirectory: app/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
+          alias: ${{ secrets.ALIAS }}
+          keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+        env:
+          BUILD_TOOLS_VERSION: "34.0.0"
+
+      - name: Clean up build artifacts
+        run: |
+          set -e
+
+          cp app/build/outputs/apk/release/app-universal-release-signed.apk LibreTube-r${{ env.COMMIT_COUNT }}.apk
+          sha=`sha256sum LibreTube-r${{ env.COMMIT_COUNT }}.apk | awk '{ print $1 }'`
+          echo "APK_UNIVERSAL_SHA=$sha" >> $GITHUB_ENV
+
+          cp app/build/outputs/apk/release/app-arm64-v8a-release-signed.apk LibreTube-arm64-v8a-r${{ env.COMMIT_COUNT }}.apk
+          sha=`sha256sum LibreTube-arm64-v8a-r${{ env.COMMIT_COUNT }}.apk | awk '{ print $1 }'`
+          echo "APK_ARM64_V8A_SHA=$sha" >> $GITHUB_ENV
+
+          cp app/build/outputs/apk/release/app-armeabi-v7a-release-signed.apk LibreTube-armeabi-v7a-r${{ env.COMMIT_COUNT }}.apk
+          sha=`sha256sum LibreTube-armeabi-v7a-r${{ env.COMMIT_COUNT }}.apk | awk '{ print $1 }'`
+          echo "APK_ARMEABI_V7A_SHA=$sha" >> $GITHUB_ENV
+
+          cp app/build/outputs/apk/release/app-x86-release-signed.apk LibreTube-x86-r${{ env.COMMIT_COUNT }}.apk
+          sha=`sha256sum LibreTube-x86-r${{ env.COMMIT_COUNT }}.apk | awk '{ print $1 }'`
+          echo "APK_X86_SHA=$sha" >> $GITHUB_ENV
+
+          cp app/build/outputs/apk/release/app-x86_64-release-signed.apk LibreTube-x86_64-r${{ env.COMMIT_COUNT }}.apk
+          sha=`sha256sum LibreTube-x86_64-r${{ env.COMMIT_COUNT }}.apk | awk '{ print $1 }'`
+          echo "APK_X86_64_SHA=$sha" >> $GITHUB_ENV
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: r${{ env.COMMIT_COUNT }}
+          name: LibreTube Release r${{ env.COMMIT_COUNT }}
+          body: |
+            ### Commits
+
+            https://github.com/libre-tube/LibreTube/compare/${{ env.PREV_RELEASE_SHA }}...${{ env.CURRENT_SHA }}
+
+            ${{ env.COMMIT_LOGS }}
+
+            ---
+
+            ### Checksums
+
+            | Variant | SHA-256 |
+            | ------- | ------- |
+            | Universal | ${{ env.APK_UNIVERSAL_SHA }}
+            | arm64-v8a | ${{ env.APK_ARM64_V8A_SHA }}
+            | armeabi-v7a | ${{ env.APK_ARMEABI_V7A_SHA }}
+            | x86 | ${{ env.APK_X86_SHA }}
+            | x86_64 | ${{ env.APK_X86_64_SHA }} |
+          files: |
+            LibreTube-r${{ env.COMMIT_COUNT }}.apk
+            LibreTube-arm64-v8a-r${{ env.COMMIT_COUNT }}.apk
+            LibreTube-armeabi-v7a-r${{ env.COMMIT_COUNT }}.apk
+            LibreTube-x86-r${{ env.COMMIT_COUNT }}.apk
+            LibreTube-x86_64-r${{ env.COMMIT_COUNT }}.apk
+          draft: ${{ github.event.inputs.dry-run != '' }}
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prune old releases
+        uses: dev-drprasad/delete-older-releases@v0.3.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          keep_latest: 28
+          delete_tags: true
